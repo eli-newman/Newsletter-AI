@@ -36,9 +36,9 @@ class RelevanceAgent:
         # Initialize cache tracker
         self.cache_tracker = CacheTracker()
         
-        # Use GPT-4 for relevance filtering (high quality critical task)
+        # Use GPT-3.5-turbo for relevance filtering (cost-effective, still high quality)
         self.model = model or config.MODELS.get("relevance", config.OPENAI_MODEL)
-        print(f"🔍 RELEVANCE AGENT: Using {self.model} for high-quality filtering")
+        print(f"🔍 RELEVANCE AGENT: Using {self.model} for cost-effective filtering")
         
         # Initialize LangChain components
         self.llm = ChatOpenAI(
@@ -48,10 +48,25 @@ class RelevanceAgent:
             request_timeout=30
         )
         
-        # Relevance filtering prompt
+        # Relevance filtering prompt - balanced AI focus
         self.relevance_prompt = ChatPromptTemplate.from_messages([
-            ("system", "You are a relevance filtering agent for an AI newsletter. Filter articles for AI tools, models, infrastructure, enterprise use cases, or industry trends."),
-            ("user", """Is this article relevant to AI tools, models, infrastructure, enterprise use cases, or industry trends?
+            ("system", "You are a relevance filter for an AI/ML newsletter. Include articles about AI/ML technologies, tools, models, applications, and real-world AI use cases. Exclude general tech news that doesn't involve AI."),
+            ("user", """Is this article about AI/ML technologies, tools, models, frameworks, or AI applications?
+
+INCLUDE (AI-relevant):
+- AI tools, frameworks, models, LLMs, agents, automation using AI
+- AI infrastructure, deployment, training, fine-tuning
+- Enterprise AI applications and use cases (e.g., AI in customer support, AI in workflows)
+- AI research, papers, or breakthroughs
+- Companies using AI in interesting ways
+- AI agents, AI systems, AI-powered solutions
+
+EXCLUDE (not AI-relevant):
+- General cybersecurity news (data breaches, hacks) unless specifically about AI security
+- General tech infrastructure (servers, networks) unless AI-specific
+- Spectrum/network policy, regulatory decisions (unless AI-related)
+- General business news without AI focus
+- Articles where AI is only mentioned in passing, not the main topic
 
 Title: {title}
 Source: {source}
@@ -60,7 +75,7 @@ Summary: {summary}
 Respond with JSON:
 {{
   "is_relevant": true/false,
-  "reason": "..."
+  "reason": "Brief explanation of why it is/isn't AI-relevant"
 }}""")
         ])
     

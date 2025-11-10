@@ -18,6 +18,8 @@ RSS_FEEDS = [
     "https://aws.amazon.com/blogs/machine-learning/feed/",
     "https://www.kdnuggets.com/feed", # Covers model comparisons, benchmarks, and AI trends.
     "https://blog.langchain.dev/rss/", # LangChain Blog → Building AI applications with LangChain.
+    "https://aimodels.substack.com/feed", # AIModels Blog → Building AI models with AIModels.   
+    
     
     # Enterprise AI & Business Applications
     "https://venturebeat.com/ai/feed/",  # VentureBeat AI - Enterprise AI news
@@ -34,7 +36,7 @@ RSS_FEEDS = [
 
 # Time window for fetching articles (in hours)
 # Set to 24 for daily or 168 for weekly (7 days)
-TIME_WINDOW = 14 #hours
+TIME_WINDOW = 24 #hours
 
 # Topics of interest - Focused on automation and tools
 TOPICS_OF_INTEREST = [
@@ -107,13 +109,21 @@ DISTRIBUTION = {
 # OpenAI API configuration
 OPENAI_API_KEY = os.getenv("OPENAIAPIKEY")
 
-# Model configuration - use GPT-4 for relevance (most important), GPT-3.5-turbo for others
+# Model configuration - optimized for cost-effectiveness
 MODELS = {
-    "relevance": "gpt-4",
+    "relevance": "gpt-3.5-turbo",  # Changed from gpt-4 to save ~80% cost
     "categorization": "gpt-3.5-turbo",
     "ranking": "gpt-3.5-turbo",
     "macro_summary": "gpt-3.5-turbo",
     "micro_summary": "gpt-3.5-turbo",
+}
+
+# Feature flags for cost optimization
+FEATURES = {
+    "use_keyword_categorization": True,  # Use keyword-based categorization instead of LLM
+    "enable_macro_summary": True,  # Enable/disable daily overview generation
+    "enable_keyword_filter": False,  # Enable/disable keyword pre-filtering (LLM relevance filter is smarter)
+    "batch_relevance_processing": False,  # Process multiple articles per API call (future)
 }
 
 # Default model (kept for backward compatibility)

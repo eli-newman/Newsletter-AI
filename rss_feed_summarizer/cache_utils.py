@@ -23,10 +23,18 @@ class CacheTracker:
     def track_cache_hit(self):
         """Record a cache hit"""
         self.cache_hits += 1
+    
+    def record_hit(self):
+        """Record a cache hit (alias for compatibility)"""
+        self.track_cache_hit()
         
     def track_cache_miss(self):
         """Record a cache miss"""
         self.cache_misses += 1
+    
+    def record_miss(self):
+        """Record a cache miss (alias for compatibility)"""
+        self.track_cache_miss()
         
     def get_stats(self) -> Dict[str, Any]:
         """Get cache statistics"""
@@ -38,8 +46,9 @@ class CacheTracker:
             "hits": self.cache_hits,
             "misses": self.cache_misses,
             "total": total,
-            "hit_rate": hit_rate,
-            "cost_saved": cost_saved,
+            "hit_rate": round(hit_rate, 2),
+            "cost_saved": round(cost_saved, 4),
+            "estimated_savings": f"${cost_saved:.4f}",  # For display compatibility
         }
         
     def reset(self):

@@ -32,18 +32,50 @@ class RSSFetcher:
         # Calculate cutoff time for article freshness
         cutoff_time = datetime.now() - timedelta(hours=self.time_window)
         
-        # Process each feed URL
+        # Process each feed URL with retry logic
         for feed_url in self.feeds:
+            max_retries = 3
+            retry_delay = 1
+            response = None
+            
+            for attempt in range(max_retries):
+                try:
+                    # Rate limiting to be polite to servers
+                    time.sleep(0.5)
+                    
+                    # Fetch feed content with proper headers
+                    response = requests.get(feed_url, headers=self.headers, timeout=15)
+                    if response.status_code == 200:
+                        break  # Success, exit retry loop
+                    elif attempt < max_retries - 1:
+                        print(f"Warning: {feed_url} returned {response.status_code}, retrying ({attempt + 1}/{max_retries})...")
+                        time.sleep(retry_delay * (attempt + 1))
+                    else:
+                        print(f"Error fetching {feed_url}: HTTP status {response.status_code} after {max_retries} attempts")
+                        response = None
+                        break
+                except requests.exceptions.Timeout:
+                    if attempt < max_retries - 1:
+                        print(f"Warning: Timeout fetching {feed_url}, retrying ({attempt + 1}/{max_retries})...")
+                        time.sleep(retry_delay * (attempt + 1))
+                    else:
+                        print(f"Error: Timeout fetching {feed_url} after {max_retries} attempts")
+                        response = None
+                        break
+                except requests.exceptions.RequestException as e:
+                    if attempt < max_retries - 1:
+                        print(f"Warning: Error fetching {feed_url}: {str(e)}, retrying ({attempt + 1}/{max_retries})...")
+                        time.sleep(retry_delay * (attempt + 1))
+                    else:
+                        print(f"Error fetching {feed_url}: {str(e)} after {max_retries} attempts")
+                        response = None
+                        break
+            
+            # Skip if we didn't get a successful response
+            if not response or response.status_code != 200:
+                continue
+            
             try:
-                # Rate limiting to be polite to servers
-                time.sleep(0.5)
-                
-                # Fetch feed content with proper headers
-                response = requests.get(feed_url, headers=self.headers, timeout=15)
-                if response.status_code != 200:
-                    print(f"Error fetching {feed_url}: HTTP status {response.status_code}")
-                    continue
-                
                 # Parse the feed and extract source name
                 feed = feedparser.parse(response.text)
                 source_name = feed.feed.title if hasattr(feed.feed, 'title') else feed_url
@@ -84,9 +116,9 @@ class RSSFetcher:
                         article['content'] = article['summary']
                     
                     all_articles.append(article)
-            
             except Exception as e:
-                print(f"Error fetching from {feed_url}: {str(e)}")
+                print(f"Error parsing feed from {feed_url}: {str(e)}")
+                continue
         
         print(f"Fetched {len(all_articles)} articles")
         return all_articles

@@ -37,7 +37,8 @@ class MarkdownDistributor:
     
     def format_articles(self, articles: List[Dict[str, Any]], 
                          categorized: Dict[str, List[Dict[str, Any]]], 
-                         daily_overview: str = None) -> str:
+                         daily_overview: str = None,
+                         enable_tracking: bool = True) -> str:
         """
         Format articles into nice markdown optimized for email
         
@@ -87,6 +88,7 @@ class MarkdownDistributor:
                     score = article.get("relevance_score", article.get("match_score", "–"))
 
                     summary = self._clean_html(summary)
+                    # Link tracking will be added in HTML conversion
                     markdown += f"**#{idx}: [{title}]({link})** ({score if isinstance(score, (int, float)) else score})\n\n"
                     markdown += f"*Source: {source}*\n\n"
                     markdown += f"{summary}\n\n"
@@ -119,7 +121,7 @@ class MarkdownDistributor:
                 # Clean up summary text - remove HTML tags
                 summary = self._clean_html(summary)
                 
-                # Bold title with link
+                # Bold title with link (tracking will be added in HTML conversion)
                 markdown += f"**[{title}]({link})**\n\n"
                 
                 # Italicize source
@@ -181,7 +183,7 @@ class MarkdownDistributor:
         
         return filepath
 
-    def markdown_to_html(self, markdown_content: str) -> str:
+    def markdown_to_html(self, markdown_content: str, email: str = None, newsletter_id: str = None) -> str:
         """
         Convert markdown to HTML
         
@@ -200,12 +202,15 @@ class MarkdownDistributor:
             extensions=['fenced_code', 'tables']
         )
         
+        # Links are kept as-is (no tracking for privacy/trust)
+        
         # Add basic styling for better email viewing
         styled_html = f"""
         <!DOCTYPE html>
         <html>
         <head>
             <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <style>
                 body {{ font-family: Arial, sans-serif; line-height: 1.6; max-width: 800px; margin: 0 auto; padding: 20px; }}
                 h1 {{ color: #2c3e50; font-size: 24px; margin-top: 20px; margin-bottom: 10px; }}
@@ -216,21 +221,46 @@ class MarkdownDistributor:
                 p {{ margin-bottom: 10px; }}
                 strong {{ font-weight: bold; }}
                 em {{ font-style: italic; }}
+                .footer {{ margin-top: 40px; padding-top: 20px; border-top: 1px solid #ddd; font-size: 12px; color: #666; text-align: center; }}
+                .footer a {{ color: #666; }}
+                @media only screen and (max-width: 600px) {{
+                    body {{ padding: 10px; }}
+                    h1 {{ font-size: 20px; }}
+                    h2 {{ font-size: 18px; }}
+                }}
             </style>
         </head>
         <body>
             {html}
+            <div class="footer">
+                <p>You're receiving this because you subscribed to AI News Digest.</p>
+                <p><a href="mailto:{config.DISTRIBUTION.get('email', {}).get('sender', '')}?subject=Unsubscribe">Unsubscribe</a> | 
+                <a href="mailto:{config.DISTRIBUTION.get('email', {}).get('sender', '')}?subject=Feedback">Feedback</a></p>
+            </div>
+            {self._get_tracking_pixel(email, newsletter_id) if email else ''}
         </body>
         </html>
         """
         
         return styled_html
     
+    def _get_tracking_pixel(self, email: str, newsletter_id: str) -> str:
+        """Generate tracking pixel HTML"""
+        try:
+            from .analytics import get_tracker
+            tracker = get_tracker()
+            pixel_url = tracker.create_tracking_pixel_url(email, newsletter_id)
+            # Return 1x1 transparent pixel
+            return f'<img src="{pixel_url}" width="1" height="1" style="display:none;" alt="" />'
+        except ImportError:
+            return ''
+    
     def send_email_smtp(
         self,
         markdown_content: str,
         html_content: str,
         recipients_override: Any = None,
+        newsletter_id: str = None,
     ) -> Dict[str, Any]:
         """
         Send individual emails for maximum privacy
@@ -308,6 +338,17 @@ class MarkdownDistributor:
                         msg["From"] = sender
                         msg["To"] = recipient
                         
+                        # Generate personalized HTML with tracking
+                        html_content = self.markdown_to_html(markdown_content, email=recipient, newsletter_id=newsletter_id)
+                        
+                        # Record email sent event
+                        try:
+                            from .analytics import get_tracker
+                            tracker = get_tracker()
+                            tracker.record_email_sent(recipient, newsletter_id, subject)
+                        except ImportError:
+                            pass
+                        
                         # Attach plain text and HTML versions
                         msg.attach(MIMEText(markdown_content, "plain"))
                         msg.attach(MIMEText(html_content, "html"))
@@ -371,15 +412,16 @@ class MarkdownDistributor:
             try:
                 print("\n--- Starting Email Distribution ---")
                 
-                # Convert markdown to HTML
-                html_content = self.markdown_to_html(markdown_content)
+                # Generate newsletter ID for tracking
+                newsletter_id = datetime.now().strftime("%Y%m%d-%H%M%S")
                 
                 # Send using standard SMTP
                 print("Using standard SMTP for email distribution...")
                 email_result = self.send_email_smtp(
                     markdown_content,
-                    html_content,
+                    "",  # HTML generated per recipient with tracking
                     recipients_override=recipients_override,
+                    newsletter_id=newsletter_id,
                 )
                 
                 if not email_result.get("success"):
