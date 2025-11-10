@@ -69,8 +69,8 @@ class SheetsSubscriberDB:
             # Check if headers exist
             headers = self.sheet.row_values(1)
             if not headers or headers[0].lower() != 'email':
-                # Add headers
-                self.sheet.insert_row(['Email', 'Subscribed Date', 'Active'], 1)
+                # Add headers matching actual sheet structure
+                self.sheet.insert_row(['email', 'subscribed', 'timestamp', 'unsubscribed_at'], 1)
         except Exception as e:
             print(f"Warning: Could not ensure headers: {e}")
     
@@ -101,9 +101,11 @@ class SheetsSubscriberDB:
                     "email": email
                 }
             
-            # Add new subscriber
-            today = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            self.sheet.append_row([email, today, "TRUE"])
+            # Add new subscriber with actual sheet structure
+            # Format timestamp to match sheet format: 2025-10-29T22:34:54.102Z
+            now = datetime.now()
+            timestamp = now.strftime("%Y-%m-%dT%H:%M:%S.") + f"{now.microsecond // 1000:03d}Z"
+            self.sheet.append_row([email, "TRUE", timestamp, ""])
             
             return {
                 "success": True,
@@ -129,13 +131,17 @@ class SheetsSubscriberDB:
             # Get all data
             all_data = self.sheet.get_all_records()
             
-            # Filter for active subscribers
+            # Filter for active subscribers using actual column names
             active_emails = []
             for row in all_data:
-                if (row.get('Active', '').upper() == 'TRUE' and 
-                    row.get('Email', '').strip() and
-                    validate_email(row.get('Email', '').strip())):
-                    active_emails.append(row['Email'].strip())
+                # Check 'subscribed' column (case-insensitive) and 'email' column
+                subscribed = row.get('subscribed', row.get('Subscribed', '')).upper()
+                email = row.get('email', row.get('Email', '')).strip()
+                
+                if (subscribed == 'TRUE' and 
+                    email and
+                    validate_email(email)):
+                    active_emails.append(email)
             
             return active_emails
             
@@ -163,8 +169,11 @@ class SheetsSubscriberDB:
                     "email": email
                 }
             
-            # Update the Active column to FALSE
-            self.sheet.update_cell(cell.row, 3, "FALSE")  # Column C (Active)
+            # Update the subscribed column to FALSE (column 2) and set unsubscribed_at timestamp (column 4)
+            now = datetime.now()
+            unsubscribed_timestamp = now.strftime("%Y-%m-%dT%H:%M:%S.") + f"{now.microsecond // 1000:03d}Z"
+            self.sheet.update_cell(cell.row, 2, "FALSE")  # Column B (subscribed)
+            self.sheet.update_cell(cell.row, 4, unsubscribed_timestamp)  # Column D (unsubscribed_at)
             
             return {
                 "success": True,
