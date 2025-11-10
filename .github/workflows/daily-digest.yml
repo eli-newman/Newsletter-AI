@@ -1,0 +1,43 @@
+name: Daily RSS Digest
+
+on:
+  schedule:
+    # Run at 9:00 AM UTC every day
+    - cron: '0 9 * * *'
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  send-digest:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+      
+      - name: Run RSS Feed Summarizer
+        env:
+          OPENAIAPIKEY: ${{ secrets.OPENAIAPIKEY }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          GOOGLE_SHEETS_CREDENTIALS: ${{ secrets.GOOGLE_SHEETS_CREDENTIALS }}
+          SHEET_ID: ${{ secrets.SHEET_ID }}
+        run: |
+          python scripts/run.py
+      
+      - name: Upload output artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: digest-output-${{ github.run_number }}
+          path: output/*.md
+          retention-days: 30
