@@ -8,7 +8,7 @@ try:
 except ImportError:
     import config
 from langchain_openai import ChatOpenAI
-from langchain.prompts import ChatPromptTemplate
+from langchain_core.prompts import ChatPromptTemplate
 from langchain_community.cache import SQLiteCache
 from langchain.globals import set_llm_cache
 import sqlite3
@@ -86,32 +86,30 @@ Respond with JSON:
     
     def _check_cache(self, cache_key: str) -> tuple:
         """Check if article relevance is cached"""
-        conn = sqlite3.connect(self.cache_db)
-        cursor = conn.cursor()
-        
-        cursor.execute("""
-        CREATE TABLE IF NOT EXISTS article_relevance
-        (cache_key TEXT PRIMARY KEY, is_relevant BOOLEAN, reason TEXT, timestamp TEXT)
-        """)
-        
-        cursor.execute("SELECT is_relevant, reason FROM article_relevance WHERE cache_key = ?", (cache_key,))
-        result = cursor.fetchone()
-        
-        conn.close()
-        return result if result else (None, None)
+        with sqlite3.connect(self.cache_db) as conn:
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS article_relevance
+            (cache_key TEXT PRIMARY KEY, is_relevant BOOLEAN, reason TEXT, timestamp TEXT)
+            """)
+            
+            cursor.execute("SELECT is_relevant, reason FROM article_relevance WHERE cache_key = ?", (cache_key,))
+            result = cursor.fetchone()
+            
+            return result if result else (None, None)
     
     def _save_cache(self, cache_key: str, is_relevant: bool, reason: str):
         """Save relevance evaluation to cache"""
-        conn = sqlite3.connect(self.cache_db)
-        cursor = conn.cursor()
-        
-        cursor.execute(
-            "INSERT OR REPLACE INTO article_relevance (cache_key, is_relevant, reason, timestamp) VALUES (?, ?, ?, ?)",
-            (cache_key, is_relevant, reason, datetime.now().isoformat())
-        )
-        
-        conn.commit()
-        conn.close()
+        with sqlite3.connect(self.cache_db) as conn:
+            cursor = conn.cursor()
+            
+            cursor.execute(
+                "INSERT OR REPLACE INTO article_relevance (cache_key, is_relevant, reason, timestamp) VALUES (?, ?, ?, ?)",
+                (cache_key, is_relevant, reason, datetime.now().isoformat())
+            )
+            
+            conn.commit()
 
     def filter_articles(self, articles: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Filter articles for relevance to AI topics"""

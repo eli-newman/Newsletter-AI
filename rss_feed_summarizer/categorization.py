@@ -8,7 +8,7 @@ try:
 except ImportError:
     import config
 from langchain_openai import ChatOpenAI
-from langchain.prompts import ChatPromptTemplate
+from langchain_core.prompts import ChatPromptTemplate
 from langchain_community.cache import SQLiteCache
 from langchain.globals import set_llm_cache
 import sqlite3

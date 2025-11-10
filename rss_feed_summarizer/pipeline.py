@@ -20,6 +20,9 @@ try:
     from . import config
 except ImportError:
     # Handle direct execution
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).parent))
     from fetcher import RSSFetcher
     from keyword_filter import filter_articles, assign_category
     from relevance import filter_relevant_articles
