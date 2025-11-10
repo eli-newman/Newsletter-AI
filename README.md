@@ -16,8 +16,7 @@ An intelligent RSS feed processor that uses AI to fetch, filter, rank, summarize
 ### 1. Install Dependencies
 
 ```bash
-git clone <your-repo-url>
-cd rss-feed-summarizer
+git clone <https://github.com/eli-newman/Newsletter-AI.git)
 pip install -r requirements.txt
 ```
 
