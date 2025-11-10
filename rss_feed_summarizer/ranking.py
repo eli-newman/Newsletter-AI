@@ -10,7 +10,7 @@ except ImportError:
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_community.cache import SQLiteCache
-from langchain.globals import set_llm_cache
+from langchain_core.globals import set_llm_cache
 import os
 import json
 import hashlib
