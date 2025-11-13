@@ -4,7 +4,7 @@ Tests for RSS feed fetcher
 import pytest
 from datetime import datetime, timedelta
 from unittest.mock import Mock, patch, MagicMock
-from rss_feed_summarizer.fetcher import RSSFetcher
+from rss_feed_summarizer.agents.fetcher import RSSFetcher
 
 
 class TestRSSFetcher:
@@ -28,8 +28,8 @@ class TestRSSFetcher:
         fetcher = RSSFetcher(time_window_hours=48)
         assert fetcher.time_window == 48
     
-    @patch('rss_feed_summarizer.fetcher.requests.get')
-    @patch('rss_feed_summarizer.fetcher.feedparser.parse')
+    @patch('rss_feed_summarizer.agents.fetcher.requests.get')
+    @patch('rss_feed_summarizer.agents.fetcher.feedparser.parse')
     def test_fetch_articles_success(self, mock_parse, mock_get):
         """Test successful article fetching"""
         # Mock HTTP response
@@ -59,7 +59,7 @@ class TestRSSFetcher:
         assert isinstance(articles, list)
         mock_get.assert_called()
     
-    @patch('rss_feed_summarizer.fetcher.requests.get')
+    @patch('rss_feed_summarizer.agents.fetcher.requests.get')
     def test_fetch_articles_http_error(self, mock_get):
         """Test handling of HTTP errors"""
         mock_response = Mock()
@@ -72,7 +72,7 @@ class TestRSSFetcher:
         assert isinstance(articles, list)
         assert len(articles) == 0
     
-    @patch('rss_feed_summarizer.fetcher.requests.get')
+    @patch('rss_feed_summarizer.agents.fetcher.requests.get')
     def test_fetch_articles_exception(self, mock_get):
         """Test handling of exceptions during fetching"""
         mock_get.side_effect = Exception("Network error")

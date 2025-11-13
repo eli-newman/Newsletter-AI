@@ -10,19 +10,21 @@ Agent Flow:
 Note: Using RSS feed summaries directly (no AI summarization needed)
 """
 try:
-    from .fetcher import RSSFetcher  # Agent 1: Ingestion
-    from .keyword_filter import filter_articles, assign_category  # Keyword pre-filter and categorization
-    from .relevance import filter_relevant_articles  # Agent 2: Relevance
-    from .overall_summary import generate_daily_overview  # Agent 3: Macro Summary
-    from .categorization import categorize_by_topic  # Agent 4: LLM Categorization (optional)
-    from .ranking import rank_articles_by_importance  # Agent 5: Ranking
-    from .deduplication import remove_duplicates  # Duplicate detection
+    from .agents.fetcher import RSSFetcher  # Agent 1: Ingestion
+    from .agents.keyword_filter import filter_articles, assign_category  # Keyword pre-filter and categorization
+    from .agents.relevance import filter_relevant_articles  # Agent 2: Relevance
+    from .agents.overall_summary import generate_daily_overview  # Agent 3: Macro Summary
+    from .agents.categorization import categorize_by_topic  # Agent 4: LLM Categorization (optional)
+    from .agents.ranking import rank_articles_by_importance  # Agent 5: Ranking
+    from .agents.deduplication import remove_duplicates  # Duplicate detection
     from . import config
-except ImportError:
+except ImportError:  # pragma: no cover
     # Handle direct execution
     import sys
     from pathlib import Path
-    sys.path.insert(0, str(Path(__file__).parent))
+    package_root = Path(__file__).parent
+    sys.path.insert(0, str(package_root))
+    sys.path.insert(0, str(package_root / "agents"))
     from fetcher import RSSFetcher
     from keyword_filter import filter_articles, assign_category
     from relevance import filter_relevant_articles
@@ -43,6 +45,15 @@ except ImportError:
 from collections import defaultdict
 from datetime import datetime
 import time
+
+# Import cost tracker for reporting
+try:
+    from cost_tracking import get_cost_tracker
+except ImportError:
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).parent.parent))
+    from cost_tracking import get_cost_tracker
 
 def run_pipeline(email_recipients=None):
     """
@@ -261,6 +272,10 @@ def run_pipeline(email_recipients=None):
     
     if optimizations:
         print(f"   • Cost optimizations: {', '.join(optimizations)}")
+    
+    # Print cost report
+    cost_tracker = get_cost_tracker()
+    cost_tracker.print_daily_report()
 
     stats = {
         "started": len(articles),

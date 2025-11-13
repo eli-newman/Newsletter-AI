@@ -1,0 +1,28 @@
+# Repository Architecture
+
+## Core Package: `rss_feed_summarizer/`
+- Purpose: Fetch, filter, rank, summarize, and assemble the daily newsletter.
+- Layout:
+  - `pipeline.py` – orchestrates the full workflow, wires agents together.
+  - `config.py` – domain configuration and feature flags.
+  - `cli.py` – command-line helpers around the pipeline.
+  - `agents/` – one file per autonomous step in the pipeline (fetcher, relevance, categorization, ranking, macro & micro summaries, deduplication, keyword filter). Each agent may import `rss_feed_summarizer.config`, `rss_feed_summarizer.utils`, and shared infra such as `cost_tracking`.
+  - `utils/` – thin shared helpers (cache tracking, logging, validation). Never place business logic or external service code here.
+- Import rules:
+  - `agents` must only depend on `config`, `utils`, and external libs. They must not import from `distribution`, `cost_tracking` modules other than the public API defined in `cost_tracking.__init__`.
+  - `pipeline` is the only module that composes agents and talks to `distribution`.
+  - Keep new agent-like components inside `agents/`; keep new helpers inside `utils/`.
+
+## Supporting Packages
+- `cost_tracking/` – tracks OpenAI usage and cost reporting (`cost_tracker.py`, `view_costs.py`). Provide a stable API via `cost_tracking.__init__` and import with `from cost_tracking import …`.
+- `distribution/` – email and subscriber delivery logic (`distributor.py`, `sheets_db.py`, `analytics.py`). Nothing inside `rss_feed_summarizer/agents` should depend on it directly.
+- `analytics/` – raw analytics data or ad-hoc viewers. Contains JSONL, mappings, and quick inspection scripts.
+- `scripts/` – standalone entry points or maintenance tools (`run.py`, `preview_email.py`, `tracking_server.py`, `clear_relevance_cache.py`). Scripts may import from core packages but should remain thin wrappers.
+- `tests/` – test suite mirroring the public API. Keep test imports aligned with the package boundaries above.
+
+## General Guidance
+- Keep cross-package dependencies explicit and minimal. If a module needs logic from another domain, expose it through that package’s `__init__` instead of reaching into private files.
+- Prefer absolute imports (`from cost_tracking import get_cost_tracker`) over relative path hacks in scripts and tests.
+- When adding new functionality, decide early whether it belongs in an existing agent, a new agent under `agents/`, a utility under `utils/`, or a supporting package. If it touches distribution, analytics, or cost tracking, keep it outside the core pipeline.
+- Do not re-introduce standalone modules at the root of `rss_feed_summarizer/`. Group related behavior into the appropriate subpackage to preserve clarity.
+

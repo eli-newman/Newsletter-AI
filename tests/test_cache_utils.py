@@ -2,7 +2,7 @@
 Tests for cache utilities
 """
 import pytest
-from rss_feed_summarizer.cache_utils import CacheTracker
+from rss_feed_summarizer.utils.cache_utils import CacheTracker
 
 
 class TestCacheTracker:

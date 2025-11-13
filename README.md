@@ -73,22 +73,41 @@ python scripts/run.py
 ## 📁 Project Structure
 
 ```
-rss-feed-summarizer/
-├── rss_feed_summarizer/     # Summarization package (AI pipeline)
-│   ├── pipeline.py          # Main pipeline orchestrator
-│   ├── fetcher.py            # RSS feed fetcher
-│   ├── relevance.py          # Content relevance filter
-│   ├── categorization.py     # Article categorization
-│   ├── ranking.py            # Article ranking
-│   └── summaries.py          # Article summarization
-├── distribution/             # Distribution package (email & subscribers)
-│   ├── distributor.py        # Email distribution
-│   └── sheets_db.py          # Google Sheets integration
-├── scripts/
-│   └── run.py                # Main runner script
-├── .github/workflows/
-│   └── daily-digest.yml      # GitHub Actions workflow
-└── output/                   # Generated markdown files
+Newsletter-AI/
+├── rss_feed_summarizer/           # Core AI pipeline
+│   ├── pipeline.py                # Orchestrates the end-to-end run
+│   ├── config.py                  # Data sources, feature flags, defaults
+│   ├── cli.py                     # Command-line utilities
+│   ├── agents/                    # Individual pipeline steps
+│   │   ├── fetcher.py             # RSS ingestion
+│   │   ├── relevance.py           # AI relevance filter
+│   │   ├── categorization.py      # Topic tagging
+│   │   ├── ranking.py             # Category-aware ranking
+│   │   ├── overall_summary.py     # Daily macro summary
+│   │   ├── summaries.py           # Article micro summaries
+│   │   ├── deduplication.py       # Duplicate removal
+│   │   └── keyword_filter.py      # Keyword guardrails
+│   └── utils/                     # Shared helpers (no business logic)
+│       ├── cache_utils.py
+│       ├── config_validator.py
+│       └── logger.py
+├── cost_tracking/                 # OpenAI usage tracking & reports
+│   ├── cost_tracker.py
+│   └── view_costs.py
+├── distribution/                  # Email distribution layer
+│   ├── distributor.py
+│   ├── sheets_db.py
+│   └── analytics.py
+├── analytics/                     # Stored analytics & viewers
+│   ├── events_*.jsonl
+│   ├── link_mappings.json
+│   └── view_analytics.py
+├── scripts/                       # Standalone utility entry points
+│   ├── run.py
+│   ├── preview_email.py
+│   ├── tracking_server.py
+│   └── clear_relevance_cache.py
+└── tests/                         # Automated test suite
 ```
 
 ## 💰 Cost
