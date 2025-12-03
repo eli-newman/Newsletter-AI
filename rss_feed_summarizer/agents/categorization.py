@@ -185,11 +185,11 @@ if __name__ == "__main__":
     # Test the categorization agent
     from .fetcher import RSSFetcher
     from .keyword_filter import filter_articles
-
+    
     fetcher = RSSFetcher()
     articles = fetcher.fetch_articles()
     filtered_articles = filter_articles(articles)
-
+    
     agent = CategorizationAgent()
     categorized = agent.categorize_articles(filtered_articles[:10])
-    print(f"\nCategorized articles: {len(categorized)}")
+    print(f"\nCategorized articles: {len(categorized)}") 

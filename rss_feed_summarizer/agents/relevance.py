@@ -181,11 +181,11 @@ if __name__ == "__main__":
     # Test the relevance agent
     from rss_feed_summarizer.agents.fetcher import RSSFetcher
     from rss_feed_summarizer.agents.keyword_filter import filter_articles
-
+    
     fetcher = RSSFetcher()
     articles = fetcher.fetch_articles()
     filtered_articles = filter_articles(articles)
-
+    
     agent = RelevanceAgent()
     relevant = agent.filter_articles(filtered_articles[:10])
-    print(f"\nRelevant articles: {len(relevant)}")
+    print(f"\nRelevant articles: {len(relevant)}") 

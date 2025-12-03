@@ -165,13 +165,13 @@ def categorize_articles(articles: List[Dict[str, Any]]) -> Dict[str, List[Dict[s
 if __name__ == "__main__":
     # Test filter
     from .fetcher import RSSFetcher
-
+    
     fetcher = RSSFetcher()
     all_articles = fetcher.fetch_articles()
-
+    
     filtered = filter_articles(all_articles)
     categorized = categorize_articles(filtered)
-
+    
     print(f"Filtered {len(filtered)} articles from {len(all_articles)} total")
     for category, articles in categorized.items():
         if articles:

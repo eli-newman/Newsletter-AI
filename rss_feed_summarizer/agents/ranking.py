@@ -179,11 +179,11 @@ if __name__ == "__main__":
     # Test the ranking agent
     from rss_feed_summarizer.agents.fetcher import RSSFetcher
     from rss_feed_summarizer.agents.keyword_filter import filter_articles
-
+    
     fetcher = RSSFetcher()
     articles = fetcher.fetch_articles()
     filtered_articles = filter_articles(articles)
-
+    
     agent = RankingAgent()
     ranked = agent.rank_articles(filtered_articles[:10], max_articles=5)
-    print(f"\nRanked articles: {len(ranked)}")
+    print(f"\nRanked articles: {len(ranked)}") 

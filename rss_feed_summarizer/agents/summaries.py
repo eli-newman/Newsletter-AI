@@ -164,15 +164,15 @@ if __name__ == "__main__":
     # Test the micro summary agent
     from .fetcher import RSSFetcher
     from .keyword_filter import filter_articles
-
+    
     fetcher = RSSFetcher()
     articles = fetcher.fetch_articles()
     filtered_articles = filter_articles(articles)
-
+    
     agent = MicroSummaryAgent()
     summarized = agent.summarize_articles(filtered_articles[:3])
-
+    
     for i, article in enumerate(summarized):
         print(f"\n--- Article {i+1} ---")
         print(f"Title: {article['title']}")
-        print(f"Summary: {article['summary']}")
+        print(f"Summary: {article['summary']}") 

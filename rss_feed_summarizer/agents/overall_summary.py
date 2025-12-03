@@ -164,11 +164,11 @@ if __name__ == "__main__":
     # Test the macro summary agent
     from .fetcher import RSSFetcher
     from .keyword_filter import filter_articles
-
+    
     fetcher = RSSFetcher()
     articles = fetcher.fetch_articles()
     filtered_articles = filter_articles(articles)
-
+    
     agent = MacroSummaryAgent()
     overview = agent.generate_overview(filtered_articles[:10])
-    print(f"\nDaily Overview: {overview}")
+    print(f"\nDaily Overview: {overview}") 
