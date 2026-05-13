@@ -1,6 +1,7 @@
 """
 Agent 5: Categorization Agent
-Tags articles with categories (TOOLS_AND_FRAMEWORKS, MODELS_AND_INFRASTRUCTURE, etc.)
+Tags articles with reader-intent categories defined in config.CATEGORIES
+(MONEY_PLAYS, LAUNCHES_AND_PRODUCTS, TOOLS_AND_PLAYBOOKS, IMPORTANT_AI_NEWS, MARKET_AND_MONEY_MOVES).
 """
 from typing import List, Dict, Any
 
@@ -55,23 +56,22 @@ class CategorizationAgent:
             request_timeout=30
         )
         
-        # Categorization prompt
+        # Categorization prompt — reader-intent buckets
+        category_list = "\n".join(
+            f"- {key}: {cfg.get('label', key)}" for key, cfg in CATEGORIES.items()
+        )
         self.categorization_prompt = ChatPromptTemplate.from_messages([
-            ("system", "You are a categorization agent. Classify articles into predefined categories."),
-            ("user", """Classify the article into one of the following categories:
-- TOOLS_AND_FRAMEWORKS
-- MODELS_AND_INFRASTRUCTURE  
-- ENTERPRISE_USE_CASES
-- INDUSTRY_AND_MARKET
+            ("system", "You bucket articles into reader-intent categories for a newsletter about making money with AI."),
+            ("user", f"""Pick the single best category for this article.
 
-Title: {title}
-Summary: {summary}
+Categories:
+{category_list}
 
-Respond with:
-{{
-  "category": "...",
-  "justification": "..."
-}}""")
+Title: {{title}}
+Summary: {{summary}}
+
+Respond with strict JSON only:
+{{{{"category": "<one of the keys above>", "justification": "<short reason>"}}}}""")
         ])
     
     def _get_cache_key(self, title: str, content: str) -> str:
@@ -143,12 +143,12 @@ Respond with:
                         )
                     
                     result = json.loads(response.content.strip())
-                    category = result.get('category', 'INDUSTRY_AND_MARKET')
+                    category = result.get('category', 'IMPORTANT_AI_NEWS')
                     justification = result.get('justification', 'No justification provided')
                     
                     # Validate category
                     if category not in self.categories:
-                        category = 'INDUSTRY_AND_MARKET'
+                        category = 'IMPORTANT_AI_NEWS'
                     
                     self._save_cache(cache_key, category, justification)
                     
@@ -157,7 +157,7 @@ Respond with:
                     
                 except Exception as e:
                     print(f"Error in categorization agent for '{title}': {str(e)}")
-                    article['category'] = 'INDUSTRY_AND_MARKET'
+                    article['category'] = 'IMPORTANT_AI_NEWS'
                     article['category_justification'] = 'Error in categorization'
             
             categorized_articles.append(article)

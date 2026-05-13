@@ -49,18 +49,25 @@ class MacroSummaryAgent:
             request_timeout=30
         )
         
-        # Macro summary prompt
+        # Builder-first macro summary. Leads with the most actionable money/build angle.
         self.macro_summary_prompt = ChatPromptTemplate.from_messages([
-            ("system", "You are a macro summary agent that creates high-level newsletter introductions summarizing daily AI trends."),
-            ("user", """Analyze the following list of article titles and summaries. Generate a 3–5 sentence newsletter introduction summarizing the biggest trends or common themes for the day.
+            ("system",
+             "You write the opening for a newsletter aimed at indie builders / founders trying to make money with AI. "
+             "Punchy. No fluff. No hype words. Lead with the thing a builder could DO this week, "
+             "not abstract 'trends'."),
+            ("user", """Write a 3-4 sentence opening for today's digest based on the articles below.
+
+Rules:
+- Open with the single most actionable / monetizable thing in the batch (a tool to ship with, a model release that unlocks a product, a revenue case study).
+- Then call out 1-2 other items worth their attention.
+- Mention dollar amounts, MRR/ARR, or hard numbers if any appear in the articles.
+- Plain words. Write like a friend, not a press release.
+- Do NOT start with "Today's AI news…" — start with the actual story.
 
 Articles:
 {articles}
 
-Example Output:
-"Today's AI news was dominated by multi-agent collaboration (MCP), with Amazon Bedrock leading the charge. We also saw major investments into chat-based AI, such as xAI's $300M deal with Telegram. Additionally, new AI-powered productivity tools and browsers are emerging fast."
-
-Newsletter Introduction:""")
+Opening:""")
         ])
     
     def _get_cache_key(self, content: str) -> str:

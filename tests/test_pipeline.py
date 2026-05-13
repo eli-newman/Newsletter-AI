@@ -40,7 +40,7 @@ class TestPipeline:
         mock_overview.return_value = "Test daily overview"
         
         categorized = [
-            {**article, 'category': 'TOOLS_AND_FRAMEWORKS'} 
+            {**article, 'category': 'TOOLS_AND_PLAYBOOKS'} 
             for article in sample_articles
         ]
         mock_categorize.return_value = categorized
@@ -136,7 +136,7 @@ class TestPipeline:
         mock_overview.return_value = "Test overview"
         
         categorized = [
-            {**article, 'category': 'TOOLS_AND_FRAMEWORKS'} 
+            {**article, 'category': 'TOOLS_AND_PLAYBOOKS'} 
             for article in sample_articles
         ]
         mock_categorize.return_value = categorized

@@ -17,6 +17,8 @@ try:
     from .agents.categorization import categorize_by_topic  # Agent 4: LLM Categorization (optional)
     from .agents.ranking import rank_articles_by_importance  # Agent 5: Ranking
     from .agents.deduplication import remove_duplicates  # Duplicate detection
+    from .agents.summaries import generate_article_summaries  # Builder-focused TL;DRs
+    from .agents.idea_of_the_day import generate_idea_of_the_day  # 💡 daily micro-SaaS pitch
     from . import config
 except ImportError:  # pragma: no cover
     # Handle direct execution
@@ -32,6 +34,8 @@ except ImportError:  # pragma: no cover
     from categorization import categorize_by_topic
     from ranking import rank_articles_by_importance
     from deduplication import remove_duplicates
+    from summaries import generate_article_summaries
+    from idea_of_the_day import generate_idea_of_the_day
     import config
 
 # Import distribution from separate module
@@ -215,19 +219,33 @@ def run_pipeline(email_recipients=None):
     if tracker:
         tracker.track_stage("ranking", time.time() - stage_start)
     
-    # Using RSS feed summaries directly (no AI summarization needed)
+    # AI SUMMARIES — builder-focused TL;DRs (What it is / Who / How to monetize)
     stage_start = time.time()
-    print("\n📝 Using RSS feed summaries directly (skipping AI summarization to save cost/time)")
+    if config.FEATURES.get("enable_ai_summaries", True):
+        print("\n✏️  AI SUMMARIES: Generating builder-focused TL;DRs for final articles...")
+        for category, cat_articles in final_articles_by_category.items():
+            if cat_articles:
+                final_articles_by_category[category] = generate_article_summaries(cat_articles)
+        if tracker:
+            tracker.track_stage("ai_summaries", time.time() - stage_start)
+    else:
+        print("\n📝 Using RSS feed summaries directly (AI summaries disabled in config)")
+        for category, cat_articles in final_articles_by_category.items():
+            for article in cat_articles:
+                if not article.get('summary') and article.get('content'):
+                    article['summary'] = article['content']
+                elif not article.get('summary'):
+                    article['summary'] = 'No summary available'
     
-    # Ensure articles have summary field populated from RSS feeds
-    for category, cat_articles in final_articles_by_category.items():
-        for article in cat_articles:
-            # Ensure summary exists (should already be from RSS feed)
-            if not article.get('summary') and article.get('content'):
-                article['summary'] = article['content']
-            elif not article.get('summary'):
-                article['summary'] = 'No summary available'
-    
+    # IDEA OF THE DAY — the centerpiece. One fresh micro-SaaS pitch per email.
+    stage_start = time.time()
+    idea_of_the_day = ""
+    if config.FEATURES.get("enable_idea_of_the_day", True):
+        print("\n💡 IDEA OF THE DAY: Generating one fresh micro-SaaS pitch...")
+        idea_of_the_day = generate_idea_of_the_day(final_articles_by_category)
+        if tracker:
+            tracker.track_stage("idea_of_the_day", time.time() - stage_start)
+
     # Distribution
     stage_start = time.time()
     print("\n📧 DISTRIBUTION: Generating digest...")
@@ -235,12 +253,35 @@ def run_pipeline(email_recipients=None):
     all_final_articles = []
     for category_articles in final_articles_by_category.values():
         all_final_articles.extend(category_articles)
-    
+
+    # Generate dynamic subject line from the top stories (MONEY_PLAYS first if present)
+    subject_line = None
+    if config.FEATURES.get("enable_dynamic_subject", True):
+        try:
+            try:
+                from .agents.subject_line import generate_subject_line
+            except ImportError:
+                from agents.subject_line import generate_subject_line
+            priority_cats = [
+                "STARTUP_IDEAS", "MONEY_PLAYS", "LAUNCHES_AND_PRODUCTS",
+                "IMPORTANT_AI_NEWS", "TOOLS_AND_PLAYBOOKS", "MARKET_AND_MONEY_MOVES",
+            ]
+            top_pool = []
+            for cat in priority_cats:
+                top_pool.extend(final_articles_by_category.get(cat, []))
+            top_pool = top_pool[:5] if top_pool else all_final_articles[:5]
+            subject_line = generate_subject_line(daily_overview or "", top_pool)
+            print(f"📬 Subject line for today: {subject_line}")
+        except Exception as e:
+            print(f"Subject line generation skipped: {e}")
+
     distribution_result = use_distributor(
         all_final_articles,
         final_articles_by_category,
         daily_overview,
         email_recipients=email_recipients,
+        subject_override=subject_line,
+        idea_of_the_day=idea_of_the_day,
     )
     if tracker:
         tracker.track_stage("distribution", time.time() - stage_start)

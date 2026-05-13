@@ -6,6 +6,8 @@ from .overall_summary import MacroSummaryAgent, generate_daily_overview
 from .summaries import MicroSummaryAgent, generate_article_summaries, summarize_articles
 from .keyword_filter import filter_articles, assign_category, categorize_articles
 from .deduplication import remove_duplicates
+from .subject_line import generate_subject_line
+from .idea_of_the_day import generate_idea_of_the_day
 
 __all__ = [
     "RSSFetcher",
@@ -24,5 +26,7 @@ __all__ = [
     "assign_category",
     "categorize_articles",
     "remove_duplicates",
+    "generate_subject_line",
+    "generate_idea_of_the_day",
 ]
 

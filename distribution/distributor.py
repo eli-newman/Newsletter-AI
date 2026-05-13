@@ -35,10 +35,11 @@ class MarkdownDistributor:
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
     
-    def format_articles(self, articles: List[Dict[str, Any]], 
-                         categorized: Dict[str, List[Dict[str, Any]]], 
+    def format_articles(self, articles: List[Dict[str, Any]],
+                         categorized: Dict[str, List[Dict[str, Any]]],
                          daily_overview: str = None,
-                         enable_tracking: bool = True) -> str:
+                         enable_tracking: bool = True,
+                         idea_of_the_day: str = "") -> str:
         """
         Format articles into nice markdown optimized for email
         
@@ -54,85 +55,108 @@ class MarkdownDistributor:
         
         # Start with the header
         markdown = f"# AI News Digest - {today}\n\n"
-        
+
+        # 💡 IDEA OF THE DAY — the centerpiece, placed first so it's seen even
+        # if the reader skims/scrolls past everything else.
+        if idea_of_the_day:
+            markdown += f"{idea_of_the_day}\n\n---\n\n"
+
         # Add daily overview if provided (from Macro Summary Agent)
         if daily_overview:
             markdown += f"## 📊 Daily Overview\n\n"
             markdown += f"{daily_overview}\n\n"
-        
+
         # Add summary stats
         markdown += f"## 📈 Summary\n"
         markdown += f"*{len(articles)} articles from {len(set([a.get('source', 'Unknown') for a in articles]))} sources*\n\n"
         
-        # Spotlight top automation tools so readers can act quickly
-        highlight_category = "TOOLS_AND_FRAMEWORKS"
-        if highlight_category in categorized and categorized[highlight_category]:
-            scored_tools = sorted(
-                categorized[highlight_category],
-                key=lambda x: (
-                    x.get("relevance_score", 0),
-                    x.get("match_score", 0),
-                    x.get("published", datetime.now())
-                ),
-                reverse=True
-            )
-            top_tools = scored_tools[:3]
+        # Spotlight today's top concrete ideas / money plays so readers act first.
+        # Falls down the priority chain if a category is empty today.
+        spotlight_chain = ["STARTUP_IDEAS", "MONEY_PLAYS", "LAUNCHES_AND_PRODUCTS"]
+        highlight_category = None
+        spotlight_articles = []
+        for cat in spotlight_chain:
+            if categorized.get(cat):
+                highlight_category = cat
+                spotlight_articles = list(categorized[cat])
+                break
 
-            if top_tools:
-                markdown += f"## 🔍 Quick Wins: Automation & Tooling ({len(top_tools)})\n\n"
-                for idx, article in enumerate(top_tools, start=1):
+        if spotlight_articles:
+            scored = sorted(
+                spotlight_articles,
+                key=lambda x: (
+                    x.get("match_score", 0),
+                    x.get("published", datetime.now()),
+                ),
+                reverse=True,
+            )
+            top = scored[:3]
+            spotlight_emoji = config.CATEGORIES.get(highlight_category, {}).get("emoji", "🔥")
+            spotlight_label = config.CATEGORIES.get(highlight_category, {}).get(
+                "label", highlight_category.replace("_", " ").title()
+            )
+            if top:
+                markdown += f"## {spotlight_emoji} Today's Top {spotlight_label} ({len(top)})\n\n"
+                for idx, article in enumerate(top, start=1):
                     title = article.get('title', 'No Title')
                     link = article.get('link', '')
                     summary = article.get('ai_summary', article.get('summary', 'No summary available'))
                     source = article.get('source', 'Unknown Source')
-                    score = article.get("relevance_score", article.get("match_score", "–"))
-
+                    money_angle = article.get('money_angle', '')
                     summary = self._clean_html(summary)
-                    # Link tracking will be added in HTML conversion
-                    markdown += f"**#{idx}: [{title}]({link})** ({score if isinstance(score, (int, float)) else score})\n\n"
+                    markdown += f"**#{idx}: [{title}]({link})**\n\n"
                     markdown += f"*Source: {source}*\n\n"
+                    if money_angle:
+                        markdown += f"> 💡 {money_angle}\n\n"
                     markdown += f"{summary}\n\n"
         
-        # Add other categories with emoji from config
-        for category, category_articles in categorized.items():
+        # Render the remaining categories — ideas/money first
+        priority = [
+            "STARTUP_IDEAS",
+            "MONEY_PLAYS",
+            "LAUNCHES_AND_PRODUCTS",
+            "TOOLS_AND_PLAYBOOKS",
+            "IMPORTANT_AI_NEWS",
+            "MARKET_AND_MONEY_MOVES",
+        ]
+        for category in priority:
+            category_articles = categorized.get(category, [])
             if not category_articles:
                 continue
-                
-            # Get emoji for category
-            emoji = config.CATEGORIES.get(category, {}).get("emoji", "")
-            
-            # Sort by date if available
+            # Skip whatever we already spotlighted at the top
+            if category == highlight_category:
+                continue
+
+            cat_cfg = config.CATEGORIES.get(category, {})
+            emoji = cat_cfg.get("emoji", "")
+            label = cat_cfg.get("label", category.replace("_", " ").title())
+
             sorted_articles = sorted(
-                category_articles, 
-                key=lambda x: x.get('published', datetime.now()), 
-                reverse=True
+                category_articles,
+                key=lambda x: x.get("published", datetime.now()),
+                reverse=True,
             )
-            
-            # Make category headings larger and more prominent
-            markdown += f"## {emoji} {category.replace('_', ' ').title()} ({len(sorted_articles)})\n\n"
-            
-            # Add each article with improved formatting
+
+            markdown += f"## {emoji} {label} ({len(sorted_articles)})\n\n"
+
             for article in sorted_articles:
-                title = article.get('title', 'No Title')
-                link = article.get('link', '')
-                summary = article.get('ai_summary', article.get('summary', 'No summary available'))
-                source = article.get('source', 'Unknown Source')
-                
-                # Clean up summary text - remove HTML tags
+                title = article.get("title", "No Title")
+                link = article.get("link", "")
+                summary = article.get("ai_summary", article.get("summary", "No summary available"))
+                source = article.get("source", "Unknown Source")
+                money_angle = article.get("money_angle", "")
                 summary = self._clean_html(summary)
-                
-                # Bold title with link (tracking will be added in HTML conversion)
+
                 markdown += f"**[{title}]({link})**\n\n"
-                
-                # Italicize source
                 markdown += f"*Source: {source}*\n\n"
-                
-                # Add summary text
-                markdown += f"{summary}\n\n"
-                
-                # Add spacing between articles
-                markdown += "\n"
-            
+                if money_angle:
+                    markdown += f"> 💡 {money_angle}\n\n"
+                markdown += f"{summary}\n\n\n"
+
+        # Footer CTA — referral hook
+        markdown += "---\n\n"
+        markdown += "**Liked this?** Forward to one builder who'd find it useful — that's how this grows.\n\n"
+
         return markdown
     
     def _clean_html(self, text: str) -> str:
@@ -261,6 +285,7 @@ class MarkdownDistributor:
         html_content: str,
         recipients_override: Any = None,
         newsletter_id: str = None,
+        subject_override: str = None,
     ) -> Dict[str, Any]:
         """
         Send individual emails for maximum privacy
@@ -280,7 +305,7 @@ class MarkdownDistributor:
         
         sender = email_config.get('sender', '')
         recipients_str = email_config.get('recipient', '')
-        subject = email_config.get('subject', 'AI News Digest')
+        subject = subject_override or email_config.get('subject', 'AI News Digest')
         smtp_server = email_config.get('smtp_server', '')
         smtp_port = email_config.get('smtp_port', 465)
         smtp_user = email_config.get('smtp_user', sender)
@@ -382,10 +407,12 @@ class MarkdownDistributor:
             traceback.print_exc()
             return {"success": False, "recipients": recipients, "sent": 0, "failed": len(recipients)}
     
-    def distribute(self, articles: List[Dict[str, Any]], 
-                   categorized: Dict[str, List[Dict[str, Any]]], 
+    def distribute(self, articles: List[Dict[str, Any]],
+                   categorized: Dict[str, List[Dict[str, Any]]],
                    daily_overview: str = None,
-                   recipients_override: Any = None) -> Dict[str, Any]:
+                   recipients_override: Any = None,
+                   subject_override: str = None,
+                   idea_of_the_day: str = "") -> Dict[str, Any]:
         """
         Format articles and distribute as markdown file and optionally email
         
@@ -399,7 +426,10 @@ class MarkdownDistributor:
             Distribution metadata (filepath, recipients, etc.)
         """
         # Generate markdown
-        markdown_content = self.format_articles(articles, categorized, daily_overview)
+        markdown_content = self.format_articles(
+            articles, categorized, daily_overview,
+            idea_of_the_day=idea_of_the_day,
+        )
         
         # Save to file
         filepath = self.save_markdown(markdown_content)
@@ -422,6 +452,7 @@ class MarkdownDistributor:
                     "",  # HTML generated per recipient with tracking
                     recipients_override=recipients_override,
                     newsletter_id=newsletter_id,
+                    subject_override=subject_override,
                 )
                 
                 if not email_result.get("success"):
@@ -440,9 +471,10 @@ class MarkdownDistributor:
             "email": email_result,
         }
 
-def use_distributor(articles, categorized, daily_overview=None, email_recipients=None):
+def use_distributor(articles, categorized, daily_overview=None, email_recipients=None,
+                    subject_override=None, idea_of_the_day=""):
     """
-    Use the distributor to format and save articles
+    Use the distributor to format and save articles.
     """
     distributor = MarkdownDistributor()
     result = distributor.distribute(
@@ -450,5 +482,7 @@ def use_distributor(articles, categorized, daily_overview=None, email_recipients
         categorized,
         daily_overview,
         recipients_override=email_recipients,
+        subject_override=subject_override,
+        idea_of_the_day=idea_of_the_day,
     )
     return result

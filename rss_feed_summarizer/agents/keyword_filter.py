@@ -1,178 +1,193 @@
 """
-Article filter for RSS feeds
+Keyword pre-filter + category assignment.
+
+Pre-filter goal: kill obvious slop fast, before paying for an LLM call.
+Category goal: bucket each article into a reader-intent category.
 """
 from typing import List, Dict, Any
-from datetime import datetime
 
 from .. import config
 
-# Import categories from config
 CATEGORIES = config.CATEGORIES
+TITLE_BLOCKLIST = getattr(config, "TITLE_BLOCKLIST", [])
+TRUSTED_CREATORS = [c.lower() for c in getattr(config, "TRUSTED_CREATORS", [])]
+
+
+def _has_trusted_creator(title: str, content: str, summary: str, url: str) -> bool:
+    """True if a trusted creator's name appears anywhere — their stuff is auto-signal."""
+    if not TRUSTED_CREATORS:
+        return False
+    blob = f"{title} {content} {summary} {url}".lower()
+    return any(name in blob for name in TRUSTED_CREATORS)
+
+
+def _is_blocked_title(title: str) -> bool:
+    """Drop articles whose title screams slop."""
+    if not getattr(config, "FEATURES", {}).get("enable_title_blocklist", True):
+        return False
+    t = (title or "").lower()
+    return any(phrase in t for phrase in TITLE_BLOCKLIST)
+
 
 def filter_articles(articles: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
-    Filter articles based on relevance to enterprise AI workflows
+    Pre-filter articles for AI + builder/money relevance.
+
+    Drops:
+      - empty articles
+      - slop titles (TITLE_BLOCKLIST)
+      - articles with zero AI signal AND zero money signal
     """
-    filtered_articles = []
-    
+    filtered = []
+    dropped_blocklist = 0
+    dropped_no_signal = 0
+
+    # Lightweight AI signal — if none of these appear, almost certainly not for us.
+    ai_signal_terms = [
+        "ai", "artificial intelligence", "llm", "gpt", "claude", "gemini",
+        "openai", "anthropic", "model", "agent", "automation", "machine learning",
+        "ml ", "neural", "generative", "rag", "prompt", "fine-tune", "embedding",
+    ]
+
     for article in articles:
-        # Skip articles without content
-        if not article.get('title') or not (article.get('content') or article.get('summary')):
+        title = article.get("title", "")
+        if not title or not (article.get("content") or article.get("summary")):
             continue
-            
-        # Combine text fields for matching
-        title = article.get('title', '').lower()
-        content = article.get('content', '').lower()
-        summary = article.get('summary', '').lower()
-        url = article.get('link', '').lower()
-        text = f"{title} {content} {summary}"
-        
-        # Count matches across all categories
+
+        if _is_blocked_title(title):
+            dropped_blocklist += 1
+            continue
+
+        title_l = title.lower()
+        content_l = (article.get("content") or "").lower()
+        summary_l = (article.get("summary") or "").lower()
+        url_l = (article.get("link") or "").lower()
+        text = f"{title_l} {content_l} {summary_l}"
+
+        # Must have at least one AI signal — otherwise it's not on-topic
+        has_ai = any(term in text for term in ai_signal_terms)
+        # OR it's from a source we trust to already be on-topic
+        # (indie/builder feeds + idea-mining feeds where every post is potential signal)
+        trusted_url = any(
+            p in url_l
+            for p in [
+                "indiehackers.com", "producthunt.com", "ycombinator.com",
+                "bensbites", "therundown", "every.to", "stratechery",
+                "openai.com", "anthropic.com", "huggingface.co",
+                # Idea-mining sources — every post is a startup/SaaS idea by nature
+                "reddit.com/r/sideproject", "reddit.com/r/saas",
+                "reddit.com/r/microsaas", "reddit.com/r/entrepreneurridealong",
+                "reddit.com/r/indiehackers", "reddit.com/r/nocode",
+                "reddit.com/r/automate",
+                "trends.vc", "failory.com", "acquire.com",
+                # Trusted creators' own feeds
+                "latecheckout.substack.com", "flightcast.com",
+            ]
+        )
+        # OR a trusted creator's name appears anywhere
+        trusted_creator = _has_trusted_creator(title_l, content_l, summary_l, url_l)
+        if not has_ai and not trusted_url and not trusted_creator:
+            dropped_no_signal += 1
+            continue
+
+        # Score by category matches (used as a cheap "interesting-ness" proxy)
         total_matches = 0
         category_matches = set()
-        
         for category, patterns in CATEGORIES.items():
-            # Check keywords
-            for keyword in patterns['keywords']:
+            for keyword in patterns.get("keywords", []):
                 if keyword.lower() in text:
                     total_matches += 1
                     category_matches.add(category)
-                    
-            # Check URL patterns
-            for pattern in patterns['url_patterns']:
-                if pattern.lower() in url:
-                    total_matches += 1
+            for pattern in patterns.get("url_patterns", []):
+                if pattern.lower() in url_l:
+                    total_matches += 2
                     category_matches.add(category)
-        
-        # Relaxed criteria: Keep article if it has matches from at least 1 category OR 2+ total matches
-        if len(category_matches) >= 1 or total_matches >= 2:
-            article['match_score'] = total_matches
-            filtered_articles.append(article)
-    
-    # Sort by match score - let LLM relevance filtering decide final count
-    filtered_articles.sort(key=lambda x: x.get('match_score', 0), reverse=True)
-    
-    print(f"\nFiltered from {len(articles)} to {len(filtered_articles)} articles based on keywords")
-    return filtered_articles
+
+        # Big boost for trusted creators — their stuff goes near the top.
+        if trusted_creator:
+            total_matches += 10
+            article["trusted_creator"] = True
+
+        article["match_score"] = total_matches
+        article["category_matches"] = list(category_matches)
+        filtered.append(article)
+
+    filtered.sort(key=lambda x: x.get("match_score", 0), reverse=True)
+
+    print(
+        f"\nKeyword pre-filter: {len(articles)} → {len(filtered)} "
+        f"(blocked slop titles: {dropped_blocklist}, no AI signal: {dropped_no_signal})"
+    )
+    return filtered
+
 
 def assign_category(article: Dict[str, Any]) -> str:
     """
-    Assign an article to one of the four categories based on content and URL
-    """
-    title = article.get('title', '').lower()
-    content = article.get('content', '').lower()
-    summary = article.get('summary', '').lower()
-    url = article.get('link', '').lower()
-    
-    # Combine text for matching
-    text = f"{title} {content} {summary}"
-    
-    # Score for each category
-    scores = {category: 0 for category in CATEGORIES.keys()}
-    
-    for category, patterns in CATEGORIES.items():
-        # Check keywords
-        for keyword in patterns['keywords']:
-            if keyword.lower() in text:
-                scores[category] += 1
-        
-        # Check URL patterns
-        for pattern in patterns['url_patterns']:
-            if pattern.lower() in url:
-                scores[category] += 2
-    
-    # Return category with highest score, default to INDUSTRY_AND_MARKET
-    max_score = max(scores.values())
-    if max_score > 0:
-        for category, score in scores.items():
-            if score == max_score:
-                return category
-    
-    return 'INDUSTRY_AND_MARKET'
+    Bucket an article into one of the reader-intent categories.
 
-def score_relevance(article: Dict[str, Any]) -> int:
+    Priority order matters: MONEY_PLAYS wins over generic news because that's
+    the newsletter's whole thesis.
     """
-    Score article relevance from 1-10 based on enterprise AI workflow value
-    """
-    title = article.get('title', '').lower()
-    content = article.get('content', '').lower()
-    summary = article.get('summary', '').lower()
-    url = article.get('link', '').lower()
-    
-    score = 5  # Start with neutral score
-    
-    # Technical depth indicators
-    technical_terms = [
-        'architecture', 'implementation', 'performance', 'benchmark',
-        'optimization', 'scalability', 'infrastructure', 'technical'
+    title_l = (article.get("title") or "").lower()
+    content_l = (article.get("content") or "").lower()
+    summary_l = (article.get("summary") or "").lower()
+    url_l = (article.get("link") or "").lower()
+    text = f"{title_l} {content_l} {summary_l}"
+
+    # Title gets 3x weight — title language is the strongest intent signal
+    scores = {category: 0 for category in CATEGORIES.keys()}
+    for category, patterns in CATEGORIES.items():
+        for keyword in patterns.get("keywords", []):
+            kw = keyword.lower()
+            if kw in title_l:
+                scores[category] += 3
+            elif kw in text:
+                scores[category] += 1
+        for pattern in patterns.get("url_patterns", []):
+            if pattern.lower() in url_l:
+                scores[category] += 2
+
+    max_score = max(scores.values()) if scores else 0
+    if max_score == 0:
+        return "IMPORTANT_AI_NEWS"  # safer default than the old INDUSTRY_AND_MARKET
+
+    # Tie-break order — favor concrete ideas/money over generic news
+    priority = [
+        "STARTUP_IDEAS",
+        "MONEY_PLAYS",
+        "LAUNCHES_AND_PRODUCTS",
+        "TOOLS_AND_PLAYBOOKS",
+        "MARKET_AND_MONEY_MOVES",
+        "IMPORTANT_AI_NEWS",
     ]
-    
-    # Enterprise relevance indicators
-    enterprise_terms = [
-        'enterprise', 'business', 'production', 'deployment', 'integration',
-        'workflow', 'solution', 'roi', 'cost', 'efficiency'
-    ]
-    
-    # LLM/RAG/Agent relevance
-    llm_terms = [
-        'llm', 'language model', 'rag', 'retrieval', 'augmented', 'agent',
-        'automation', 'embedding', 'vector', 'semantic', 'prompt'
-    ]
-    
-    text = f"{title} {content} {summary}"
-    
-    # Score technical depth
-    tech_matches = sum(1 for term in technical_terms if term in text)
-    score += min(2, tech_matches)
-    
-    # Score enterprise applicability
-    ent_matches = sum(1 for term in enterprise_terms if term in text)
-    score += min(2, ent_matches)
-    
-    # Score LLM/RAG relevance
-    llm_matches = sum(1 for term in llm_terms if term in text)
-    score += min(2, llm_matches)
-    
-    # Bonus for high-quality sources
-    quality_sources = [
-        'arxiv.org', 'github.com', 'paperswithcode.com',
-        'huggingface.co', 'microsoft.com', 'google.com', 'openai.com'
-    ]
-    if any(source in url for source in quality_sources):
-        score += 1
-    
-    # Ensure score is between 1 and 10
-    return max(1, min(10, score))
+    for cat in priority:
+        if scores.get(cat, 0) == max_score:
+            return cat
+    return "IMPORTANT_AI_NEWS"
+
 
 def categorize_articles(articles: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
-    """
-    Categorize articles and assign relevance scores
-    """
+    """Bucket articles into the reader-intent categories."""
     categorized = {key: [] for key in CATEGORIES}
-
     for article in articles:
         category = assign_category(article)
-        article['category'] = category
-        article['relevance_score'] = score_relevance(article)
+        article["category"] = category
         categorized[category].append(article)
 
     for category, articles_list in categorized.items():
         if articles_list:
             print(f"Category {category}: {len(articles_list)} articles")
-
     return categorized
 
+
 if __name__ == "__main__":
-    # Test filter
     from .fetcher import RSSFetcher
-    
+
     fetcher = RSSFetcher()
     all_articles = fetcher.fetch_articles()
-    
     filtered = filter_articles(all_articles)
     categorized = categorize_articles(filtered)
-    
-    print(f"Filtered {len(filtered)} articles from {len(all_articles)} total")
+    print(f"\nFiltered {len(filtered)} from {len(all_articles)} total")
     for category, articles in categorized.items():
         if articles:
-            print(f"{category}: {len(articles)} articles")
+            print(f"  {category}: {len(articles)} articles")

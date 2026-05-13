@@ -45,16 +45,22 @@ class MicroSummaryAgent:
             request_timeout=30
         )
         
-        # Micro summary prompt
+        # Builder-focused TL;DR. Forced structure so readers scan in 5 seconds.
         self.micro_summary_prompt = ChatPromptTemplate.from_messages([
-            ("system", "You are a micro summary agent that creates concise 2-3 sentence summaries for professional newsletters."),
-            ("user", """Summarize the following article in 2–3 sentences for a professional newsletter. Emphasize what's new, why it matters, and who should care.
+            ("system",
+             "You write punchy, actionable TL;DRs for a newsletter aimed at indie builders and founders "
+             "trying to make money with AI. No corporate fluff, no 'in conclusion', no hype words like "
+             "'revolutionary' or 'groundbreaking'. Plain language. Real numbers when present."),
+            ("user", """Write a 3-line TL;DR for the article below. Use EXACTLY this format with no extra lines:
+
+**What it is:** <one tight sentence>
+**Who can use it:** <one sentence — be specific: solo devs, agencies, non-coders, etc.>
+**How to make money with it:** <one concrete monetization angle — a SaaS niche, a freelance offer, an automation to sell, a workflow to charge for. If there's literally no monetization angle, write: "No direct money angle — read for context only.">
 
 Title: {title}
 Source: {source}
-Full Text: {content}
-
-2-3 Sentence Summary:""")
+Article: {content}
+""")
         ])
     
     def _get_cache_key(self, content: str) -> str:

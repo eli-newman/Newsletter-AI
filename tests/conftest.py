@@ -76,8 +76,8 @@ def mock_email_config(monkeypatch):
 def categorized_articles(sample_articles):
     """Sample categorized articles"""
     return {
-        'TOOLS_AND_FRAMEWORKS': [sample_articles[1]],
-        'MODELS_AND_INFRASTRUCTURE': [sample_articles[0]],
-        'ENTERPRISE_AND_MARKET': [sample_articles[2]]
+        'TOOLS_AND_PLAYBOOKS': [sample_articles[1]],
+        'IMPORTANT_AI_NEWS': [sample_articles[0]],
+        'MARKET_AND_MONEY_MOVES': [sample_articles[2]],
     }
 
