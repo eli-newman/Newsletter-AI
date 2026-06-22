@@ -1,0 +1,41 @@
+name: Keepalive
+
+# GitHub auto-disables scheduled workflows after 60 days of repo inactivity.
+# This job runs every couple weeks and makes a trivial commit to register real
+# repository activity, which resets the inactivity clock for ALL scheduled
+# workflows (including this one and the daily digest). It also re-enables the
+# digest as a safety net, so the newsletter never silently goes dark again.
+
+on:
+  schedule:
+    # 09:13 UTC on the 1st and 15th of every month
+    - cron: '13 9 1,15 * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write   # to push the keepalive commit
+  actions: write    # to re-enable a disabled workflow
+
+jobs:
+  keepalive:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Touch keepalive timestamp and commit
+        run: |
+          date -u +"%Y-%m-%dT%H:%M:%SZ" > .github/keepalive-timestamp
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/keepalive-timestamp
+          git commit -m "chore: keepalive [skip ci]" || { echo "Nothing to commit"; exit 0; }
+          git push
+
+      - name: Re-enable the daily digest workflow
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow enable "Daily RSS Digest" --repo "${{ github.repository }}" || true
+          echo "Keepalive ran; daily digest ensured active."
