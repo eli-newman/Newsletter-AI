@@ -32,13 +32,17 @@ if __name__ == "__main__":
         
         print("✅ Pipeline completed successfully!")
         
-        if result and "distribution" in result:
-            print(f"📄 Output saved to: {result['distribution']['filepath']}")
-            
+        distribution = (result or {}).get("distribution")
+        if distribution:
+            print(f"📄 Output saved to: {distribution['filepath']}")
+
             # Print email stats if available
-            email_result = result['distribution'].get('email', {})
+            email_result = distribution.get('email', {})
             if email_result.get('sent', 0) > 0:
                 print(f"📧 Emails sent: {email_result['sent']}/{email_result['sent'] + email_result.get('failed', 0)}")
+        elif result and result.get("reason"):
+            # Pipeline exited early (e.g. no relevant articles) — not a failure.
+            print(f"ℹ️  No digest produced: {result['reason']}")
                 
     except Exception as e:
         print(f"❌ Error: {str(e)}")

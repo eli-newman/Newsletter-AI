@@ -32,15 +32,22 @@ def url_similarity(url1: str, url2: str) -> float:
     """Calculate similarity between two URLs (0-1)"""
     norm1 = normalize_url(url1)
     norm2 = normalize_url(url2)
-    
+
+    # Missing URL: cannot judge similarity by URL (an empty string is a
+    # substring of every URL, which would otherwise falsely match everything).
+    if not norm1 or not norm2:
+        return 0.0
+
     # Exact match
     if norm1 == norm2:
         return 1.0
-    
-    # Check if one URL contains the other (common for redirects)
-    if norm1 in norm2 or norm2 in norm1:
+
+    # Check if one URL contains the other (common for redirects). Require the
+    # contained URL to be reasonably long so a bare domain doesn't swallow all
+    # of its sub-pages.
+    if (norm1 in norm2 or norm2 in norm1) and min(len(norm1), len(norm2)) >= 20:
         return 0.9
-    
+
     # Calculate similarity
     return SequenceMatcher(None, norm1, norm2).ratio()
 
@@ -67,14 +74,17 @@ def is_duplicate(article1: Dict[str, Any], article2: Dict[str, Any],
     url_sim = url_similarity(url1, url2)
     if url_sim >= url_threshold:
         return True
-    
+
     # Check title similarity
     title_sim = title_similarity(title1, title2)
     if title_sim >= title_threshold:
-        # If titles are very similar, check URLs are at least somewhat similar
+        # If a URL is missing for either article, fall back to title-only
+        # matching; otherwise require the URLs to be at least somewhat similar.
+        if not normalize_url(url1) or not normalize_url(url2):
+            return True
         if url_sim >= 0.5:
             return True
-    
+
     return False
 
 def remove_duplicates(articles: List[Dict[str, Any]], 
